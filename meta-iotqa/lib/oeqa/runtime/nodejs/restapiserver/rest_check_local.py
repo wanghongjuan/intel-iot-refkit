@@ -70,4 +70,5 @@ class RestApiCheckLocalTest(oeRuntimeTest):
         '''
         Clean up work.
         '''
-        cls.iot_target.clean_up(cls.tc.target)
+        pass
+        # cls.iot_target.clean_up(cls.tc.target)
