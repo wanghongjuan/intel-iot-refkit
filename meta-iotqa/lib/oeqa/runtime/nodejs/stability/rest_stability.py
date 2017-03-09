@@ -9,7 +9,7 @@ import urllib.parse
 
 from oeqa.oetest import oeRuntimeTest
 
-sys.path.append(os.path.dirname(__file__))
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'restapiserver'))
 import copy_necessary_files
 import iot_config
 
