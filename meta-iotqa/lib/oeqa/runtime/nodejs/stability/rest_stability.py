@@ -11,11 +11,11 @@ from oeqa.oetest import oeRuntimeTest
 
 sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'restapiserver'))
 import copy_necessary_files
-import iot_config
+import restapi_case_config
 
 class RestApiStabilityTest(oeRuntimeTest):
 
-    iot_target = iot_config.IoTTargetConfiguration()
+    case_config = restapi_case_config.RestApiCaseConfiguration()
     test_times = 10
     res_uuid = None
     query_res_url = None
@@ -28,13 +28,13 @@ class RestApiStabilityTest(oeRuntimeTest):
         '''
         Launch the OCF server on target device.
         '''
-        if cls.iot_target.need_copy_files:
+        if cls.case_config.need_copy_files:
             copy_necessary_files.copy_smarthome_demo_ocf_server(cls.tc.target.ip)
 
-        cls.iot_target.launch_ocf_server(cls.tc.target.ip, 'led.js')
-        time.sleep(cls.iot_target.wait_launch_ocf_server)
+        cls.case_config.launch_ocf_server(cls.tc.target.ip, 'led.js')
+        time.sleep(cls.case_config.wait_launch_ocf_server)
 
-        cls.iot_target.prepare_test(cls.tc.target)
+        cls.case_config.prepare_test(cls.tc.target)
         cls.find_res_uuid('/a/led')
 
     def test_rest_stability_with_int_exit(self):
@@ -73,7 +73,7 @@ class RestApiStabilityTest(oeRuntimeTest):
         '''
         Check /api/oic/a/led?di=<xxx>
         '''
-        query_resp = self.iot_target.session.get(self.query_res_url)
+        query_resp = self.case_config.session.get(self.query_res_url)
         status = query_resp.status_code
         self.assertEqual(200, status, 'Response error!')
 
@@ -85,8 +85,8 @@ class RestApiStabilityTest(oeRuntimeTest):
             Check /api/oic/res
         '''
         # Close LED resource with SIGINT and the resource should disappear
-        self.iot_target.kill_ocf_server(self.target, 'led.js', signal)
-        time.sleep(self.iot_target.wait_kill_ocf_server)
+        self.case_config.kill_ocf_server(self.target, 'led.js', signal)
+        time.sleep(self.case_config.wait_kill_ocf_server)
 
         query_status_cmd = 'curl -s -o /dev/null -w %{http_code} --noproxy "*" ' + self.query_res_url
         query_proc = subprocess.Popen(query_status_cmd.split(),stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
@@ -95,9 +95,9 @@ class RestApiStabilityTest(oeRuntimeTest):
         self.assertEqual('404', status, 'OCF server is down, the resource should disappear!')
 
         # Restart
-        self.iot_target.launch_ocf_server(self.target.ip, 'led.js')
-        time.sleep(self.iot_target.wait_launch_ocf_server)
-        response = self.iot_target.session.get(self.iot_target.url_oic_res.format(ip = self.target.ip))
+        self.case_config.launch_ocf_server(self.target.ip, 'led.js')
+        time.sleep(self.case_config.wait_launch_ocf_server)
+        response = self.case_config.session.get(self.case_config.url_oic_res.format(ip = self.target.ip))
         status = response.status_code
         self.assertEqual(200, status, 'Response error!')
 
@@ -118,14 +118,14 @@ class RestApiStabilityTest(oeRuntimeTest):
         '''
         Find a resource uuid with res_path.
         '''
-        cls.response = cls.iot_target.session.get(cls.iot_target.url_oic_res.format(ip = cls.tc.target.ip))
+        cls.response = cls.case_config.session.get(cls.case_config.url_oic_res.format(ip = cls.tc.target.ip))
         data = cls.response.content
         resources = json.loads(data.decode('utf8'))
         for resource in resources:
             if resource.get('links')[0].get('href') == res_path:
                 cls.res_uuid = resource.get('di')
         if cls.res_uuid:
-            cls.query_res_url = urllib.parse.urljoin(cls.iot_target.url_oic_res.format(
+            cls.query_res_url = urllib.parse.urljoin(cls.case_config.url_oic_res.format(
                                                     ip = cls.tc.target.ip),
                                                     'a/led?di={uuid}'.format(uuid = cls.res_uuid))
         print(cls.query_res_url)
@@ -135,7 +135,7 @@ class RestApiStabilityTest(oeRuntimeTest):
         '''
         Clean up work.
         '''
-        cls.iot_target.kill_ocf_server(cls.tc.target, 'led.js')
-        time.sleep(cls.iot_target.wait_kill_ocf_server)
+        cls.case_config.kill_ocf_server(cls.tc.target, 'led.js')
+        time.sleep(cls.case_config.wait_kill_ocf_server)
 
-        cls.iot_target.clean_up(cls.tc.target)
+        cls.case_config.clean_up(cls.tc.target)

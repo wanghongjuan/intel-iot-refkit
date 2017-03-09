@@ -9,22 +9,22 @@ from oeqa.oetest import oeRuntimeTest
 
 sys.path.append(os.path.dirname(__file__))
 import copy_necessary_files
-import iot_config
+import restapi_case_config
 
 class RestApiCheckLocalTest(oeRuntimeTest):
 
-    iot_target = iot_config.IoTTargetConfiguration()
+    case_config = restapi_case_config.RestApiCaseConfiguration()
 
     @classmethod
     def setUpClass(cls):
         '''
         Copy necessary files to target.
         '''
-        if cls.iot_target.need_copy_files:
+        if cls.case_config.need_copy_files:
             copy_necessary_files.copy_smarthome_demo_ocf_server(cls.tc.target.ip)
             copy_necessary_files.copy_rest_api_check_local_js(cls.tc.target.ip)
 
-        cls.iot_target.prepare_test(cls.tc.target)
+        cls.case_config.prepare_test(cls.tc.target)
 
     def test_restapi_locally(self):
         '''
@@ -32,7 +32,7 @@ class RestApiCheckLocalTest(oeRuntimeTest):
         '''
         test_cmd = 'export NODE_PATH=/usr/lib/node_modules/;'\
                    'cd {js_test_dir};./node_modules/mocha/bin/mocha -R json'.format(
-                        js_test_dir = self.iot_target.js_test_dir)
+                        js_test_dir = self.case_config.js_test_dir)
         (status, output) = self.target.run(test_cmd)
 
         self.parse_test_results(output)
@@ -71,4 +71,4 @@ class RestApiCheckLocalTest(oeRuntimeTest):
         Clean up work.
         '''
         pass
-        # cls.iot_target.clean_up(cls.tc.target)
+        # cls.case_config.clean_up(cls.tc.target)

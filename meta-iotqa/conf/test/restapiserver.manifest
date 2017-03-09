@@ -1,4 +1,5 @@
 oeqa.runtime.nodejs.restapiserver.rest_apis
 oeqa.runtime.nodejs.restapiserver.rest_check_local
+oeqa.runtime.nodejs.restapiserver.rest_no_ocf_server_local
 oeqa.runtime.nodejs.restapiserver.rest_one_ocf_server_remote
 oeqa.runtime.nodejs.restapi.server.rest_multi_ocf_servers_remote
