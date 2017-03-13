@@ -29,3 +29,18 @@ def copy_rest_api_check_local_js(ip, to_dir = '/home/root'):
 
 	os.chdir(files_dir)
 	os.system('scp -r restapilocal root@{ip}:{to}/SmartHome-Demo'.format(ip = ip, to = to_dir))
+
+def copy_rest_api_ocf_discovery_js(ip, to_dir = '/home/root'):
+	'''
+	Copy local directory ocfdiscovery to to_dir on target devices.
+	'''
+	files_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'files')
+	restapilocal_dir = os.path.join(files_dir, 'ocfdiscovery')
+	mocha_dir = os.path.join(restapilocal_dir, 'node_modules', 'mocha')
+
+	if not os.path.exists(mocha_dir):
+		os.chdir(restapilocal_dir)
+		os.system('npm install mocha')
+
+	os.chdir(files_dir)
+	os.system('scp -r ocfdiscovery root@{ip}:{to}/SmartHome-Demo'.format(ip = ip, to = to_dir))

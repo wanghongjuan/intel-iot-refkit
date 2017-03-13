@@ -3,9 +3,9 @@
 import os
 import requests
 
-class IoTTargetConfiguration:
+class RestApiCaseConfiguration:
 	'''
-	IoT Target configuration
+	Rest API test cases configuration
 	'''
 
 	def __init__(self):
@@ -14,6 +14,7 @@ class IoTTargetConfiguration:
 		self.sh_demo_dir = os.path.join(self.home_dir, 'SmartHome-Demo')
 		self.js_test_dir = os.path.join(self.sh_demo_dir, self.restapilocal)
 		self.ocf_dir = os.path.join(self.sh_demo_dir, 'ocf-servers', 'js-servers')
+		self.ocf_js_test_dir = os.path.join(self.sh_demo_dir, 'ocfdiscovery')
 
 		self.cleanup = True
 		self.need_copy_files = True
