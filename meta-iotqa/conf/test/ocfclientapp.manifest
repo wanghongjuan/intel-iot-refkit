@@ -1,0 +1,16 @@
+oeqa.runtime.nodejs.ocfdemoapp.app
+oeqa.runtime.nodejs.ocfdemoapp.ambient_light
+oeqa.runtime.nodejs.ocfdemoapp.button
+oeqa.runtime.nodejs.ocfdemoapp.button_toggle
+oeqa.runtime.nodejs.ocfdemoapp.buzzer
+oeqa.runtime.nodejs.ocfdemoapp.env
+oeqa.runtime.nodejs.ocfdemoapp.fan
+oeqa.runtime.nodejs.ocfdemoapp.gas
+oeqa.runtime.nodejs.ocfdemoapp.led
+oeqa.runtime.nodejs.ocfdemoapp.motion
+oeqa.runtime.nodejs.ocfdemoapp.power
+oeqa.runtime.nodejs.ocfdemoapp.rgb_led
+oeqa.runtime.nodejs.ocfdemoapp.solar
+oeqa.runtime.nodejs.ocfdemoapp.switch
+oeqa.runtime.nodejs.ocfdemoapp.temperature
+oeqa.runtime.nodejs.smarthomectlapp.app
