@@ -9,31 +9,31 @@ from oeqa.oetest import oeRuntimeTest
 
 sys.path.append(os.path.dirname(__file__))
 import copy_necessary_files
-import iot_config
+import restapi_case_config
 
 class RestApiOneOcfServerTest(oeRuntimeTest):
     
-    iot_target = iot_config.IoTTargetConfiguration()
+    case_config = restapi_case_config.RestApiCaseConfiguration()
 
     @classmethod
     def setUpClass(cls):
         '''
         Launch the OCF server on target device.
         '''
-        if cls.iot_target.need_copy_files:
+        if cls.case_config.need_copy_files:
             copy_necessary_files.copy_smarthome_demo_ocf_server(cls.tc.target.ip)
 
-        cls.iot_target.launch_ocf_server(cls.tc.target.ip, 'led.js')
-        time.sleep(cls.iot_target.wait_launch_ocf_server)
+        cls.case_config.launch_ocf_server(cls.tc.target.ip, 'led.js')
+        time.sleep(cls.case_config.wait_launch_ocf_server)
 
-        cls.iot_target.prepare_test(cls.tc.target)
-        cls.iot_target.send_multi_requests(cls.tc.target.ip, 2)
+        cls.case_config.prepare_test(cls.tc.target)
+        cls.case_config.send_multi_requests(cls.tc.target.ip, 2)
 
     def test_unique_ocf_device_remote(self):
         '''
         Send REST request again and find only one OCF device.
         '''
-        response = self.iot_target.session.get(self.iot_target.url_oic_d.format(ip = self.target.ip))
+        response = self.case_config.session.get(self.case_config.url_oic_d.format(ip = self.target.ip))
         data = response.content
         devices = json.loads(data.decode('utf8'))
 
@@ -44,7 +44,7 @@ class RestApiOneOcfServerTest(oeRuntimeTest):
         '''
         Send a REST request again and find only one OCF platform.
         '''
-        response = self.iot_target.session.get(self.iot_target.url_oic_p.format(ip = self.target.ip))
+        response = self.case_config.session.get(self.case_config.url_oic_p.format(ip = self.target.ip))
         data = response.content
         platforms = json.loads(data.decode('utf8'))
 
@@ -55,7 +55,7 @@ class RestApiOneOcfServerTest(oeRuntimeTest):
         '''
         Send a REST request again and find only one OCF resource.
         '''
-        response = self.iot_target.session.get(self.iot_target.url_oic_res.format(ip = self.target.ip))
+        response = self.case_config.session.get(self.case_config.url_oic_res.format(ip = self.target.ip))
         data = response.content
         resources = json.loads(data.decode('utf8'))
 
@@ -75,7 +75,7 @@ class RestApiOneOcfServerTest(oeRuntimeTest):
         '''
         Clean up work.
         '''
-        cls.iot_target.kill_ocf_server(cls.tc.target, 'led.js')
-        time.sleep(cls.iot_target.wait_kill_ocf_server)
+        cls.case_config.kill_ocf_server(cls.tc.target, 'led.js')
+        time.sleep(cls.case_config.wait_kill_ocf_server)
 
-        cls.iot_target.clean_up(cls.tc.target)
+        cls.case_config.clean_up(cls.tc.target)
