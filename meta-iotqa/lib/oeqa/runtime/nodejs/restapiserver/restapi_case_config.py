@@ -76,18 +76,24 @@ class RestApiCaseConfiguration:
 			self.session.get(self.url_oic_p.format(ip = ip))
 			self.session.get(self.url_oic_res.format(ip = ip))
 
-	def launch_ocf_server(self, ip, ocf_server_file):
+	def launch_ocf_server(self, ip, ocf_server_file, simulated = False):
 		'''
 		Launch an OCF server.
 		'''
 		print('\nLaunch the OCF server {ocf_server} on the target device...'.format(
 			ocf_server = ocf_server_file))
+		if simulated:
+			mode = '-s'
+		else:
+			mode = ''
 		launch_ocf_server_cmd = 'ssh root@{ip} '\
 								'"export NODE_PATH=/usr/lib/node_modules/;'\
-								'cd {ocf_dir};node {ocf_server} &" &'.format(
+								'cd {ocf_dir};node {ocf_server} {m} &" &'.format(
 									ip = ip,
 									ocf_dir = self.ocf_dir,
-									ocf_server = ocf_server_file)
+									ocf_server = ocf_server_file,
+                                    							m = mode)
+		print(launch_ocf_server_cmd)
 		os.system(launch_ocf_server_cmd)
 
 	def kill_ocf_server(self, target, pattern, signal = '-INT'):
