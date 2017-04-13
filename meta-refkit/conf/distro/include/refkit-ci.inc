@@ -26,12 +26,7 @@ ISAFW_LA_PLUGIN_IMAGE_WHITELIST = "refkit-image-minimal refkit-initramfs"
 # image files are not needed for that.
 IMAGE_FSTYPES_pn-refkit-image-minimal = ""
 REFKIT_VM_IMAGE_TYPES_pn-refkit-image-minimal = ""
-
-# Enable extended buildhistory:
-INHERIT += "buildhistory"
-BUILDHISTORY_COMMIT = "1"
-INHERIT += "buildhistory-extra"
-
+ 
 # Test data generation:
 INHERIT += "test-iot"
 TEST_EXPORT_DIR = "iottest"
@@ -39,6 +34,9 @@ TEST_TARGET = "simpleremote"
 
 # SDK defaults:
 SDKMACHINE ?= "x86_64"
+
+# HOSTTOOLS setup:
+HOSTTOOLS_remove = "hostname ip vi"
 
 # Generate source mirror tarballs:
 BB_GENERATE_MIRROR_TARBALLS = "1"
@@ -48,6 +46,11 @@ require conf/distro/include/refkit-development.inc
 
 REFKIT_VM_IMAGE_TYPES = "wic.xz wic.zip wic.bmap wic.xz.sha256sum"
 
+#
+# pre/post-build oe-selftests started by CI builder, whitespace-separated.
+#
+REFKIT_CI_PREBUILD_SELFTESTS="iotsstatetests.SStateTests.test_sstate_samesigs"
+REFKIT_CI_POSTBUILD_SELFTESTS=""
 #
 # Automated build targets
 # Those targets should be space separated list of items,

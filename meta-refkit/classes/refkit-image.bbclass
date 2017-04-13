@@ -3,11 +3,12 @@
 REFKIT_IMAGE_EXTRA_INSTALL ?= ""
 IMAGE_INSTALL = " \
 		kernel-modules \
-		linux-firmware \
 		packagegroup-core-boot \
-                ${ROOTFS_PKGMANAGE_BOOTSTRAP} \
-                ${CORE_IMAGE_EXTRA_INSTALL} \
-                ${REFKIT_IMAGE_EXTRA_INSTALL} \
+		${MACHINE_EXTRA_RDEPENDS} \
+		${MACHINE_EXTRA_RRECOMMENDS} \
+		${ROOTFS_BOOTSTRAP_INSTALL} \
+		${CORE_IMAGE_EXTRA_INSTALL} \
+		${REFKIT_IMAGE_EXTRA_INSTALL} \
 		"
 
 # In IoT Reference OS Kit, /bin/sh is always dash, even if bash is installed for
@@ -93,86 +94,11 @@ python () {
 }
 def refkit_swupd_image_class(d):
     if 'swupd' in d.getVar('IMAGE_FEATURES').split() and d.getVar('LAYERVERSION_meta-swupd'):
-        return 'swupd-image'
+        return 'refkit-swupd-image'
     else:
         return ''
+# Here we optionally inherit refkit-swupd-image.bbclass, which configures and activates swupd.
 inherit ${@refkit_swupd_image_class(d)}
-
-# Activate support for updating EFI system partition when using
-# both meta-swupd and the EFI kernel+initramfs combo.
-IMAGE_INSTALL_append = "${@ ' efi-combo-trigger' if ${REFKIT_USE_DSK_IMAGES} and 'swupd' in d.getVar('IMAGE_FEATURES').split() else '' }"
-
-# Workaround when both Smack and swupd are used:
-# Setting a label explicitly on the directory prevents it
-# from inheriting other undesired attributes like security.SMACK64TRANSMUTE
-# from upper folders (see xattr-images.bbclass for details).
-DEPENDS_${PN}_append = " \
-    ${@ bb.utils.contains('IMAGE_FEATURES', 'swupd', 'xattr-native', '', d)} \
-"
-fix_var_lib_swupd () {
-    if ${@bb.utils.contains('IMAGE_FEATURES', 'smack', 'true', 'false', d)} &&
-       ${@bb.utils.contains('IMAGE_FEATURES', 'swupd', 'true', 'false', d)}; then
-        install -d ${IMAGE_ROOTFS}/var/lib/swupd
-        setfattr -n security.SMACK64 -v "_" ${IMAGE_ROOTFS}/var/lib/swupd
-    fi
-}
-ROOTFS_POSTPROCESS_COMMAND_append = " fix_var_lib_swupd;"
-
-# Make progress messages from do_swupd_update visible as normal command
-# line output, instead of just recording it to the logs. Useful
-# because that task can run for a long time without any output.
-SWUPD_LOG_FN ?= "bbplain"
-
-# When using the "swupd" image feature, ensure that OS_VERSION is
-# set as intended. The default for local build works, but yields very
-# unpredictable version numbers (see refkit.conf for details).
-#
-# For example, build with:
-#   BB_ENV_EXTRAWHITE="$BB_ENV_EXTRAWHITE OS_VERSION" OS_VERSION=100 bitbake refkit-image-common
-#   ...
-
-# Customize priorities of alternative components. See refkit.conf.
-#
-# In general, Busybox or Toybox are preferred over alternatives.
-# The expectation is that either Busybox or Toybox are used, but if
-# both get installed, Toybox is used for those commands that it
-# provides.
-#
-# It is still possible to build images with coreutils providing
-# core system tools, one just has to remove Toybox/Busybox from
-# the image.
-export ALTERNATIVE_PRIORITY_BUSYBOX ?= "300"
-export ALTERNATIVE_PRIORITY_TOYBOX ?= "301"
-export ALTERNATIVE_PRIORITY_BASH ?= "305"
-
-# Both systemd and the efi_combo_updater have problems when
-# "mount" is provided by busybox: systemd fails to remount
-# the rootfs read/write and the updater segfaults because
-# it does not parse the output correctly.
-#
-# For now avoid these problems by sticking to the traditional
-# mount utilities from util-linux.
-export ALTERNATIVE_PRIORITY_UTIL_LINUX ?= "305"
-
-# We do not know exactly which util-linux packages will get
-# pulled into bundles, so we have to install all of them
-# also in the os-core. Alternatively we could try to select
-# just mount/umount as overrides for Toybox/Busybox.
-IMAGE_INSTALL += "util-linux"
-
-# We need "login" and "passwd" from shadow because:
-# - Busybox "login" does not use PAM and thus would require
-#   separate patching to support stateless motd (patched
-#   in libpam); also the login via getty is different compared
-#   to logins via ssh, which is potentially confusing and thus
-#   should better be avoided (either no PAM, or PAM everywhere).
-# - /dev/tty does not point to the serial console when logging
-#   in via getty and using Busybox login, so anything that
-#   tries to interact with the user (passwd, ssh) fails.
-# - shadow "passwd" creates /etc/shadow if it does not exist
-#   yet (required when setting the root password).
-export ALTERNATIVE_PRIORITY_SHADOW ?= "305"
-IMAGE_INSTALL += "shadow"
 
 # Common profile has "packagegroup-common-test" that has packages that are
 # used only in "development" configuration.
@@ -186,7 +112,6 @@ FEATURE_PACKAGES_common-test = "packagegroup-common-test"
 REFKIT_IMAGE_FEATURES_COMMON ?= " \
     connectivity \
     ssh-server-openssh \
-    iotivity \
     alsa \
     sensors \
 "
@@ -237,17 +162,6 @@ FEATURE_PACKAGES_tools-debug_append = " valgrind"
 FEATURE_PACKAGES_computervision = "packagegroup-computervision"
 FEATURE_PACKAGES_computervision-test = "packagegroup-computervision-test"
 
-# We could make bash the login shell for interactive accounts as shown
-# below, but that would have to be done also in the os-core and thus
-# tools-interactive would have to be set in all swupd images.
-# TODO (?): introduce a bash-login-shell image feature?
-# ROOTFS_POSTPROCESS_COMMAND_append = "${@bb.utils.contains('IMAGE_FEATURES', 'tools-interactive', ' root_bash_shell; ', '', d)}"
-# root_bash_shell () {
-#     sed -i -e 's;/bin/sh;/bin/bash;' \
-#        ${IMAGE_ROOTFS}${sysconfdir}/passwd \
-#        ${IMAGE_ROOTFS}${sysconfdir}/default/useradd
-# }
-
 IMAGE_LINGUAS = " "
 
 LICENSE = "MIT"
@@ -277,7 +191,13 @@ IMAGE_FSTYPES_remove = "live"
 # Activate "dsk" image type.
 IMAGE_CLASSES += "${@ 'image-dsk' if ${REFKIT_USE_DSK_IMAGES} else ''}"
 
+# By default, the full image is meant to fit into 4*10^9 bytes, i.e.
+# "4GB" regardless whether 1000 or 1024 is used as base. 64M are reserved
+# for potential partitioning overhead.
 WKS_FILE = "refkit-directdisk.wks.in"
+REFKIT_VFAT_MB ??= "64"
+REFKIT_IMAGE_SIZE ??= "--fixed-size 3622M"
+REFKIT_EXTRA_PARTITION ??= ""
 WIC_CREATE_EXTRA_ARGS += " -D"
 
 # Inherit after setting variables that get evaluated when importing
@@ -371,9 +291,10 @@ REFKIT_IMAGE_STRIP_SMACK = "${@ 'refkit_image_strip_smack' if not bb.utils.conta
 do_rootfs[postfuncs] += "${REFKIT_IMAGE_STRIP_SMACK}"
 DEPENDS += "${@ 'attr-native' if '${REFKIT_IMAGE_STRIP_SMACK}' else '' }"
 
-# Mount read-only at first. This gives systemd a chance to run fsck
-# and then mount read/write.
-APPEND_append = " ro"
+# Disable running fsck at boot. System clock is typically wrong at early boot
+# stage due to lack of RTC backup battery. This causes unnecessary fixes being
+# made due to filesystem metadata time stamps being in future.
+APPEND_append = " fsck.mode=skip"
 
 # Ensure that images preserve Smack labels and IMA/EVM.
 inherit ${@bb.utils.contains_any('IMAGE_FEATURES', ['ima','smack'], 'xattr-images', '', d)}
@@ -463,12 +384,10 @@ ROOTFS_POSTPROCESS_COMMAND += "${@'extra_motd;' if d.getVar('REFKIT_EXTRA_MOTD',
 # FIXME: make this work with both ${IMAGE_ROOTFS}/etc/ and ${IMAGE_ROOTFS}/usr/lib
 refkit_image_patch_os_release () {
     sed -i \
-        -e 's/distro-version-to-be-added-during-image-creation/${DISTRO_VERSION}/' \
         -e 's/build-id-to-be-added-during-image-creation/${BUILD_ID}/' \
         ${IMAGE_ROOTFS}/etc/os-release
 }
 refkit_image_patch_os_release[vardepsexclude] = " \
-    DISTRO_VERSION \
     BUILD_ID \
 "
 ROOTFS_POSTPROCESS_COMMAND += "refkit_image_patch_os_release; "

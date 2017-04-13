@@ -13,12 +13,14 @@
 # more details.
 #
 
+# This script relies on workspace which is cleaned via jenkins method
+
 # function to test one image, see call point below.
 testimg() {
+  declare -i num_masked=0 num_total=0 num_skipped=0 num_na=0 num_failed=0 num_error=0
   _IMG_NAME=$1
   TEST_SUITE_FILE=$2
   TEST_CASES_FILE=$3
-  _IMG_NAME_MACHINE=${_IMG_NAME}-${MACHINE}
 
   # Get test suite
   wget ${_WGET_OPTS} ${TEST_SUITE_FOLDER_URL}/${_IMG_NAME}/${TEST_SUITE_FILE}
@@ -28,56 +30,23 @@ testimg() {
 
   # Copy local WLAN settings to iottest over example file and chmod to readable
   _WLANCONF=./iottest/oeqa/runtime/sanity/files/config.ini
-  cp /home/tester/.config.ini.wlan ${_WLANCONF}
+  cp $HOME/.config.ini.wlan ${_WLANCONF}
   chmod 644 ${_WLANCONF}
 
-  # Get image(s)
-  if [ "${MACHINE}" = "edison" ]; then
-    # Workaround for the wifi test bug -- not enabled, left here for possible future activation
-    #sed -i "s/oeqa.runtime.sanity.comm_wifi_connect/#oeqa.runtime.sanity.comm_wifi_connect/g" iottest/testplan/iottest.manifest
-    EDISON_TAR_FILENAME=${_IMG_NAME_MACHINE}.toflash.tar.bz2
-    TEST_IMG_URL=${DIR_FULL_URL}/images/${MACHINE}/${EDISON_TAR_FILENAME}
-    wget ${_WGET_OPTS} ${TEST_IMG_URL}
-    tar -xf ${EDISON_TAR_FILENAME}
-    mv toFlash/* .
-    FILENAME=${_IMG_NAME_MACHINE}.ext4
-  elif [ "${MACHINE}" = "beaglebone" ]; then
-    FILE_DIR="${DIR_FULL_URL}/images/${MACHINE}"
-    wget ${_WGET_OPTS} ${FILE_DIR}/MLO
-    wget ${_WGET_OPTS} ${FILE_DIR}/u-boot.img
-    wget ${_WGET_OPTS} ${FILE_DIR}/zImage
-    wget ${_WGET_OPTS} ${FILE_DIR}/zImage-am335x-boneblack.dtb
-    FILENAME=${_IMG_NAME_MACHINE}.tar.bz2
-    wget ${_WGET_OPTS} ${FILE_DIR}/${FILENAME}
-
-  else
-    FN_BASE=${_IMG_NAME_MACHINE}-${CI_BUILD_ID}
-    FILENAME=${FN_BASE}.wic
-    FILENAME_BMAP=${FILENAME}.bmap
-    FILENAME_XZ=${FILENAME}.xz
-    FILENAME_ZIP=${FILENAME}.zip
-
-    set +e
-    TEST_IMG_URL=${DIR_FULL_URL}/images/${MACHINE}/${FILENAME_XZ}
-    wget ${_WGET_OPTS} ${TEST_IMG_URL}
-    TEST_IMG_BMAP_URL=${DIR_FULL_URL}/images/${MACHINE}/${FILENAME_BMAP}
-    wget ${_WGET_OPTS} ${TEST_IMG_BMAP_URL}
-    if [ -f ${FILENAME_XZ} ]; then
-      echo "Extracting ${FILENAME_XZ}"
-      unxz -d ${FILENAME_XZ}
+  FILENAME=${_IMG_NAME}-${MACHINE}-${CI_BUILD_ID}.wic
+  set +e
+  wget ${_WGET_OPTS} ${CI_BUILD_URL}/images/${MACHINE}/${FILENAME}.bmap
+  wget ${_WGET_OPTS} ${CI_BUILD_URL}/images/${MACHINE}/${FILENAME}.xz -O - | unxz - > ${FILENAME}
+  if [ ! -s ${FILENAME} ]; then
+    wget ${_WGET_OPTS} ${CI_BUILD_URL}/images/${MACHINE}/${FILENAME}.zip
+    if [ -s ${FILENAME}.zip ]; then
+      unzip ${FILENAME}.zip
     else
-      TEST_IMG_URL=${DIR_FULL_URL}/images/${MACHINE}/${FILENAME_ZIP}
-      wget ${_WGET_OPTS} ${TEST_IMG_URL}
-      if [ -f ${FILENAME_ZIP} ]; then
-        echo "Extracting ${FILENAME_ZIP}"
-        unzip ${FILENAME_ZIP}
-      else
-        echo "No dsk.xz nor dsk.zip image file found, can not continue"
-        exit 1
-      fi
+      echo "ERROR: No file ${FILENAME}.xz or ${FILENAME}.zip found, can not continue."
+      exit 1
     fi
-    set -e
   fi
+  set -e
 
   if [ ! -z ${TEST_DEVICE+x} ]; then
     DEVICE="$TEST_DEVICE"
@@ -85,12 +54,6 @@ testimg() {
     DEVICE=`echo ${JOB_NAME} | awk -F'_' '{print $2}'`
   else
     DEVICE="unconfigured"
-  fi
-
-  if [ "${DEVICE}" != "gigabyte" ]; then
-    RECORD_ARG="--record"
-  else
-    RECORD_ARG=""
   fi
 
   # Remove incompatible tests for the DUT from image-testplan.manifest
@@ -104,9 +67,11 @@ testimg() {
   # Execute with +e to make sure that possibly created log files get
   # renamed, archived, published even when AFT or some of renaming fails
   set +e
-  daft ${DEVICE} ${FILENAME} ${RECORD_ARG}
+  daft ${DEVICE} ${FILENAME} --record
   AFT_EXIT_CODE=$?
 
+  # delete symlinks, these point outside of local set and are useless
+  find . -type l -print -delete
   # modify names inside TEST-*.xml files to contain device and img_name
   # as these get shown in same xUnit results table in Jenkins
   sed -e "s/name=\"oeqa/name=\"${DEVICE}.${_IMG_NAME}.oeqa/g" -i TEST-*.xml
@@ -115,25 +80,22 @@ testimg() {
   rename .log .${DEVICE}.${_IMG_NAME}.log *.log
   # create summary file to be used in email notification sending
   _reports=`ls TEST-${DEVICE}.${_IMG_NAME}.*.xml`
-  num_total=0
-  num_skipped=$((0+num_masked))
-  num_failed=0
-  num_error=0
+  num_na=$num_masked
   for _r in $_reports; do
     _s=`grep 'testsuite errors=' $_r |tr -d '<>' |sed 's/testsuite//g'`
     eval $_s
-    num_error=$(( num_error + errors ))
-    num_failed=$(( num_failed + failures ))
-    num_skipped=$(( num_skipped + skipped ))
-    num_total=$(( num_total + tests ))
+    num_error+=${errors}
+    num_failed+=${failures}
+    num_skipped+=${skipped}
+    num_total+=${tests}
   done
-  num_passed=$(( num_total - num_error - num_failed - num_skipped ))
+  num_passed=$((num_total - num_error - num_failed - num_skipped))
   run_total=$((num_passed + num_failed))
   # passing data from here to Jenkinsfile works through file in workspace:
   sumfile=results-summary-${DEVICE}.${_IMG_NAME}.log
   echo "Image: ${FILENAME}" > $sumfile
   echo "  Device: ${DEVICE}" >> $sumfile
-  echo "  Total:$num_total  Pass:$num_passed  Fail:$num_failed  Skip:$num_skipped  Error:$num_error" >> $sumfile
+  echo "  Total:$num_total  Pass:$num_passed  Fail:$num_failed  Skip:$num_skipped  Error:$num_error  N/A:$num_na" >> $sumfile
   if [ $num_total -gt 0 ]; then
     run_rate=$((100*run_total/num_total))
     pass_rate_of_total=$((100*num_passed/num_total))
@@ -141,26 +103,20 @@ testimg() {
     echo "  Run rate:${run_rate}%  Pass rate of total:${pass_rate_of_total}%  Pass rate of exec:${pass_rate_of_exec}%" >> $sumfile
   fi
   echo "-------------------------------------------------------------------" >> $sumfile
-  # combine artifacts into single file for easier download
-  tar c --ignore-failed-read results* *.xml *.log | bzip2 -c9 > aft-results_${DEVICE}_${_IMG_NAME}_${TEST_SUITE_FILE}.tar.bz2
   set -e
 
   return ${AFT_EXIT_CODE}
 }
 
-# Start
-# Note: this script relies on cleaned workspace (clean it via jenkins job config)
-
-_WGET_OPTS="--no-verbose --no-proxy"
-
-DIR_FULL_URL="$CI_BUILD_URL"
-TEST_SUITE_FOLDER_URL="${DIR_FULL_URL}/testsuite/${MACHINE}/"
-
-# document env.vars in build log
+# Start, document env.vars in build log
 env |sort
 
-# process testinfo file written to tester workspace by Jenkinsfile.
-# Jenkinsfile sorts it all out, we have just one line for this tester session.
+_WGET_OPTS="--no-verbose --no-proxy"
+CI_BUILD_URL=${COORD_BASE_URL}/builds/${JOB_NAME}/${CI_BUILD_ID}
+TEST_SUITE_FOLDER_URL=${CI_BUILD_URL}/testsuite/${MACHINE}
+
+# get necessary params from testinfo.csv file written to tester workspace
+# by code in Jenkinsfile. We have just one line for this tester session.
 while IFS=, read _img _tsuite _tdata _mach
 do
   [ "${_mach}" = "${MACHINE}" ] && testimg ${_img} ${_tsuite} ${_tdata}

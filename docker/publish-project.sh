@@ -82,16 +82,17 @@ if [ -d ${_DEPL}/swupd/${TARGET_MACHINE} ]; then
 fi
 
 if [ -d ${_DEPL}/sdk ]; then
-    # call eSDK publish script with destination set to sdk-data/TARGET_MACHINE/
-    # note: script name is dynamic, use it via wildard. NB! works while there is only one sdk/*-toolchain-ext*.sh
+    # run eSDK publish script with destination set to sdk-data/TARGET_MACHINE/
+    # script name is dynamic, used via wildard. NB! works while there is only one sdk/*-toolchain-ext*.sh
     ${WORKSPACE}/openembedded-core/scripts/oe-publish-sdk ${_DEPL}/sdk/*-toolchain-ext*.sh ${_DEPL}/sdk-data/${TARGET_MACHINE}/
-    # publish installer as .sh file to sdk/ and all of sdk-data/
+    # publish installer .sh file to sdk/
     create_remote_dirs ${_RSYNC_DEST} sdk/${TARGET_MACHINE}
     rsync -av ${_DEPL}/sdk/*.sh ${_RSYNC_DEST}/sdk/${TARGET_MACHINE}/
 fi
 if [ -d ${_DEPL}/sdk-data/${TARGET_MACHINE} ]; then
+    # publish sdk-data/ without -v option, avoiding logging massive list
     create_remote_dirs ${_RSYNC_DEST} sdk-data
-    rsync -av ${_DEPL}/sdk-data/${TARGET_MACHINE} ${_RSYNC_DEST}/sdk-data/
+    rsync -a ${_DEPL}/sdk-data/${TARGET_MACHINE} ${_RSYNC_DEST}/sdk-data/
 fi
 if [ -d ${_DEPL}/testsuite ]; then
     create_remote_dirs ${_RSYNC_DEST} testsuite/${TARGET_MACHINE}
@@ -132,8 +133,10 @@ fi
 # Copy detailed build logs
 # Include symlinks to avoid massive amount of "skipping non-regular file"
 # lines in the rsyncd server system-level log
-create_remote_dirs ${_RSYNC_DEST} detailed-logs/${TARGET_MACHINE}/
-rsync -qzrl --prune-empty-dirs --include "log.*" --include "*/" --exclude "*" ${_BRESULT}/work*/* ${_RSYNC_DEST}/detailed-logs/${TARGET_MACHINE}/
+if [ -d ${_BRESULT}/work ]; then
+    create_remote_dirs ${_RSYNC_DEST} detailed-logs/${TARGET_MACHINE}/
+    rsync -qzrl --prune-empty-dirs --include "log.do_*" --include "*/" --exclude "*" ${_BRESULT}/work*/* ${_RSYNC_DEST}/detailed-logs/${TARGET_MACHINE}/
+fi
 
 # Create latest symlink locally and rsync it to parent dir of publish dir
 ln -vsf ${CI_BUILD_ID} latest
